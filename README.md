@@ -10,7 +10,7 @@ Este projeto traz uma infraestrutura inteligente para cálculo de prioridade e r
 * **Timeline Limpa:** O script gerencia o histórico de comentários, removendo logs antigos.
 
 ---
-## 🎯 Por que usar esta solução (AppScript vs. Nativo)?
+## 🎯 Por que usar AppScript e não a engine nativa do Jira pra automatizar o cálculo do score?
 Tentei realizar cálculos de score usando as regras de automação nativas do Jira, mas encontrei alguns problemas de confiabilidade que esta solução resolve:
 
 1. **Falha em cálculos condicionais complexos:** No Jira, ao usar múltiplos blocos {{#if}} ou funções .contains(), qualquer campo vazio (null) faz com que a expressão matemática inteira "quebre", resultando em um score em branco ou calculado incorretamente.
