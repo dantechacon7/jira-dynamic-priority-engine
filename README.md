@@ -1,6 +1,13 @@
 # Jira Dynamic Priority Scorer
 
-Este projeto provê uma infraestrutura inteligente para cálculo de prioridade e risco em chamados do Jira, utilizando **Google Apps Script** como motor de processamento e **Google Sheets** como banco de regras dinâmicas (Single Source of Truth).
+Este projeto traz uma infraestrutura inteligente para cálculo de prioridade e risco em chamados do Jira, utilizando **Google Apps Script** para o processamento e **Google Sheets** como banco de regras dinâmicas. O **jira** entra como ferramenta que irá enviar as respostas dos campos e receber o score final de risco para definição de prioridade dos times envolvidos na demanda.
+
+## 🌟 Principais características desse projeto
+
+* **Desacoplamento:** A lógica de pesos não está no código. Ela é lida dinamicamente de uma planilha.
+* **Autonomia na manutenção:** Gestores podem alterar pesos na planilha sem tocar em código.
+* **Segurança:** Validação de autenticidade via Headers customizados. Isso será de extrema valia, pois para o Jira acessar o AppScript, a configuração de visibilidade da URL de requisição precisa ser "Qualquer pessoa", o que não possibilita que qualquer pessoa veja seu código fonte, mas que possa ser realizada uma requisição, nesse exemplo, ao Slack, incluindo informações diversas no JSON.
+* **Timeline Limpa:** O script gerencia o histórico de comentários, removendo logs antigos.
 
 ---
 
@@ -8,10 +15,10 @@ Este projeto provê uma infraestrutura inteligente para cálculo de prioridade e
 
 A solução opera em um ciclo de 4 etapas:
 
-1. **Trigger (Jira):** Uma automação no Jira dispara um Webhook (POST) ao detectar a criação ou transição de um ticket.
-2. **Middleware (App Script):** O script recebe o JSON, valida a segurança e consulta a planilha de pesos.
-3. **Engine de Cálculo:** O algoritmo cruza as respostas do formulário Jira com a matriz de pesos da planilha.
-4. **Feedback (Jira API):** O score final é injetado no campo definido e um sumário visual é postado nos comentários do ticket.
+1. **Trigger (Jira):** Uma automação no Jira dispara um Webhook (POST).
+2. **Middleware (App Script):** O script valida a segurança e consulta a planilha de pesos.
+3. **Engine de Cálculo:** O algoritmo cruza as respostas do ticket com a matriz da planilha.
+4. **Feedback (Jira API):** O score é injetado no ticket e um sumário visual é postado nos comentários.
 
 ---
 
@@ -22,54 +29,64 @@ O script consome dados de uma aba chamada `Config_Pesos`. Siga este modelo:
 | Campo (ID Jira) | Critério (Resposta) | Peso (Valor) |
 | --- | --- | --- |
 | `cf17855` | sim | 25 |
-| `cf17855` | não | -5 |
 | `cf17854` | crítico | 85 |
-| `cf17854` | alto | 60 |
-
-> **Nota:** O script utiliza busca parcial (`.includes()`), permitindo identificar palavras-chave em campos de texto ou seleções múltiplas de forma flexível.
 
 ---
 
-## 🔐 Configuração de Variáveis (Script Properties)
+## ⚙️ Configuração da Regra de Automação (Jira)
 
-No console do Google Apps Script, acesse **Configurações do Projeto > Propriedades do Script** e adicione:
+Para integrar o Jira ao script, siga os passos abaixo na administração do seu projeto:
+
+1. **Gatilho:** Escolha o gatilho desejado (ex: *Issue Created* ou *Field Value Changed*).
+2. **Ação:** Selecione **Send web request**.
+3. **Webhook URL:** Insira a URL de implantação do seu Google Apps Script.
+4. **Headers:** * Chave: `X-Auth-Token` (Ou a chave definida em `HEADER_KEY`).
+* Valor: O segredo definido em `HEADER_VALUE`.
+
+
+5. **HTTP Method:** `POST`.
+6. **Webhook Body:** Selecione **Custom Data**.
+
+### JSON Exemplo (Custom Data)
+
+Copie e cole o código abaixo, substituindo os IDs pelos campos reais do seu Jira:
+
+```json
+{
+  "issueKey": "{{issue.key}}",
+  "fields": {
+    "cf17855": "{{issue.CustomFieldName1.value}}",
+    "cf17854": "{{issue.CustomFieldName2.value}}",
+    "cf17856": "{{issue.CustomFieldName3.value}}"
+  }
+}
+
+```
+
+> **Vale se atentar:** Use as *Smart Values* do Jira (entre chaves duplas) para que o Jira envie os valores dinâmicos de cada ticket.
+
+---
+
+## 🔐 Variáveis de Ambiente (Script Properties)
+
+No Google Apps Script, configure em **Propriedades do Script**:
 
 | Chave | Descrição |
 | --- | --- |
-| `JIRA_DOMAIN` | Domínio do Jira (ex: `empresa.atlassian.net`) |
-| `USER_EMAIL` | E-mail do usuário/bot com permissão de API |
-| `API_TOKEN` | Token de API gerado na Atlassian |
-| `SPREADSHEET_ID` | O ID da planilha Google que contém os pesos |
-| `HEADER_KEY` | Nome do Header de segurança (ex: `x-auth-token`) |
-| `HEADER_VALUE` | O segredo compartilhado que o Jira deve enviar |
-
----
-
-## 🛠️ Sintaxe e Lógica do Código
-
-O script foi desenvolvido para ser **agnóstico ao contexto**. Suas principais funções são:
-
-### 1. `carregarPesosDaPlanilha()`
-
-Varre a planilha e transforma as linhas em um mapa de objetos em memória. Isso otimiza a performance, permitindo que o script processe múltiplos campos em milissegundos.
-
-### 2. `doPost(e)`
-
-* Realiza o "handshake" de segurança.
-* Normaliza os dados (lowercase e higienização) para evitar erros de case-sensitivity.
-* Calcula o score e define a classificação visual (🔴, 🟠, 🟡, 🟢).
-
-### 3. `upsertGovernanceComment()`
-
-Busca por um comentário que contenha a tag "IDENTIFICADOR DE GOVERNANÇA". Caso exista, ele é deletado antes da postagem do novo, garantindo que o histórico do ticket não fique poluído por atualizações sucessivas.
+| `JIRA_DOMAIN` | URL do Jira (ex: `empresa.atlassian.net`) |
+| `USER_EMAIL` | E-mail do bot/usuário de serviço |
+| `API_TOKEN` | Token de API Atlassian |
+| `SPREADSHEET_ID` | O ID da planilha Google com os pesos |
+| `HEADER_KEY` | Nome do Header de segurança |
+| `HEADER_VALUE` | O segredo compartilhado |
 
 ---
 
 ## 🔍 Solução de Problemas (Troubleshooting)
 
-Se o score não estiver atualizando, verifique:
-
-* **Log de Execução:** No Google Apps Script, acesse "Execuções" para verificar se o status foi `OK` ou `Proibido` (erro de autenticação).
-* **IDs dos Campos:** Certifique-se de que os nomes dos campos no JSON enviado pelo Jira (ex: `customfield_12345`) coincidem com a primeira coluna da planilha.
-* **Permissões da Planilha:** O e-mail que executa o script deve ter permissão de leitura na planilha de pesos.
-* **JSON no Jira:** Verifique se a automação do Jira está enviando o `issueKey` corretamente no payload.
+| Problema | Causa Provável | Solução |
+| --- | --- | --- |
+| Score não atualiza | JSON mal formatado no Jira | Verifique as vírgulas no "Custom Data" da automação. |
+| Erro "Proibido" | Header Incorreto | Verifique se o `HEADER_KEY` no script é idêntico ao do Jira. |
+| Score sempre zero | ID do campo errado | Garanta que o ID na planilha (ex: `cf123`) seja igual ao do JSON. |
+| Script lento | Planilha muito grande | Limpe linhas vazias na aba `Config_Pesos`. |
