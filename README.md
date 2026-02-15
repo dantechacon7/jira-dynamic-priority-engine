@@ -10,6 +10,18 @@ Este projeto traz uma infraestrutura inteligente para cálculo de prioridade e r
 * **Timeline Limpa:** O script gerencia o histórico de comentários, removendo logs antigos.
 
 ---
+## 🎯 Por que usar esta solução (AppScript vs. Nativo)?
+Tentei realizar cálculos de score usando as regras de automação nativas do Jira, mas encontrei alguns problemas de confiabilidade que esta solução resolve:
+
+1. Falha em cálculos condicionais complexos: No Jira, ao usar múltiplos blocos {{#if}} ou funções .contains(), qualquer campo vazio (null) faz com que a expressão matemática inteira "quebre", resultando em um score em branco ou calculado incorretamente.
+
+2. Limitação de aninhamento: O Jira limita o aninhamento de lógicas if/else, tornando quase impossível manter uma matriz de pesos com mais de 5 ou 6 variáveis sem que a regra se torne instável.
+
+3. Dificuldade de manutenção: Alterar um "peso" em uma regra nativa exige permissões de administrador e a edição manual de strings complexas de Smart Values. Com o AppScript, a regra de negócio é externa (Google Sheets), permitindo que o stakeholder altere pesos sem risco de quebrar a automação.
+
+4. Tratamento de nulos: no script com JavaScript, há um tratamento automático de campos não preenchidos como 0 ou false, garantindo que o cálculo nunca retorne vazio.
+
+---
 
 ## 🏗️ Arquitetura da Solução
 
